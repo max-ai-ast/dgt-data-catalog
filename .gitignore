@@ -1,2 +1,4 @@
 __pycache__/
 docker-volume/
+.claude/
+CLAUDE.md
