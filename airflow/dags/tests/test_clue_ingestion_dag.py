@@ -31,7 +31,7 @@ def test_catchup_disabled(dag):
 
 
 def test_schedule(dag):
-    assert str(dag.schedule_interval) == "0 6 * * *"
+    assert str(dag.schedule) == "0 6 * * *"
 
 
 def test_task_count(dag):
