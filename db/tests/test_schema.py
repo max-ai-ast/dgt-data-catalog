@@ -69,23 +69,27 @@ def test_dataset_source_identifier_unique(db_clean):
         cur.execute(
             "INSERT INTO dataset (title, source_identifier) VALUES ('DS1', 'dup-id')"
         )
-        db_clean.commit()
-        cur.execute("SAVEPOINT dup_sp")
-        with pytest.raises(Exception):
+    db_clean.commit()
+
+    with pytest.raises(Exception):
+        with db_clean.cursor() as cur:
             cur.execute(
                 "INSERT INTO dataset (title, source_identifier) VALUES ('DS2', 'dup-id')"
             )
-        cur.execute("ROLLBACK TO SAVEPOINT dup_sp")
+
+    db_clean.rollback()
 
 
 def test_agency_name_case_insensitive_unique(db_clean):
     with db_clean.cursor() as cur:
         cur.execute("INSERT INTO agency (name) VALUES ('Test Agency')")
-        db_clean.commit()
-        cur.execute("SAVEPOINT agency_sp")
-        with pytest.raises(Exception):
+    db_clean.commit()
+
+    with pytest.raises(Exception):
+        with db_clean.cursor() as cur:
             cur.execute("INSERT INTO agency (name) VALUES ('test agency')")
-        cur.execute("ROLLBACK TO SAVEPOINT agency_sp")
+
+    db_clean.rollback()
 
 
 def test_distribution_cascades_on_dataset_delete(db_clean):
@@ -99,11 +103,13 @@ def test_distribution_cascades_on_dataset_delete(db_clean):
             (ds_id,),
         )
         dist_id = cur.fetchone()[0]
-        db_clean.commit()
+    db_clean.commit()
 
+    with db_clean.cursor() as cur:
         cur.execute("DELETE FROM dataset WHERE dataset_id = %s", (ds_id,))
-        db_clean.commit()
+    db_clean.commit()
 
+    with db_clean.cursor() as cur:
         cur.execute(
             "SELECT 1 FROM distribution WHERE distribution_id = %s", (dist_id,)
         )
@@ -130,8 +136,10 @@ def test_role_assignment_scope_defaults_enterprise(db_clean):
 def test_tag_name_type_unique(db_clean):
     with db_clean.cursor() as cur:
         cur.execute("INSERT INTO tag (name, tag_type) VALUES ('env', 'keyword')")
-        db_clean.commit()
-        cur.execute("SAVEPOINT tag_sp")
-        with pytest.raises(Exception):
+    db_clean.commit()
+
+    with pytest.raises(Exception):
+        with db_clean.cursor() as cur:
             cur.execute("INSERT INTO tag (name, tag_type) VALUES ('ENV', 'keyword')")
-        cur.execute("ROLLBACK TO SAVEPOINT tag_sp")
+
+    db_clean.rollback()

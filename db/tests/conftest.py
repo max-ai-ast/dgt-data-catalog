@@ -1,4 +1,5 @@
 import os
+import re
 
 import psycopg
 import pytest
@@ -24,11 +25,54 @@ def _strip_metacommands(sql: str) -> str:
     )
 
 
-def _exec_file(conn, path: str) -> None:
+def _split_statements(sql: str) -> list[str]:
+    """Split SQL into individual statements, respecting $$ dollar-quoted blocks."""
+    statements: list[str] = []
+    current: list[str] = []
+    i = 0
+    n = len(sql)
+    in_dollar_quote = False
+    dollar_tag = ""
+
+    while i < n:
+        if sql[i] == "$":
+            m = re.match(r"\$[^$]*\$", sql[i:])
+            if m:
+                tag = m.group(0)
+                if not in_dollar_quote:
+                    in_dollar_quote = True
+                    dollar_tag = tag
+                    current.append(tag)
+                    i += len(tag)
+                    continue
+                elif tag == dollar_tag:
+                    in_dollar_quote = False
+                    current.append(tag)
+                    i += len(tag)
+                    continue
+
+        if sql[i] == ";" and not in_dollar_quote:
+            stmt = "".join(current).strip()
+            if stmt:
+                statements.append(stmt)
+            current = []
+        else:
+            current.append(sql[i])
+        i += 1
+
+    trailing = "".join(current).strip()
+    if trailing:
+        statements.append(trailing)
+
+    return statements
+
+
+def _exec_file(conn: psycopg.Connection, path: str) -> None:
     with open(path) as fh:
         sql = _strip_metacommands(fh.read())
     with conn.cursor() as cur:
-        cur.execute(sql)
+        for stmt in _split_statements(sql):
+            cur.execute(stmt)
     conn.commit()
 
 
@@ -36,38 +80,34 @@ def _bootstrap(conn: psycopg.Connection) -> None:
     with conn.cursor() as cur:
         cur.execute('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"')
         cur.execute('CREATE EXTENSION IF NOT EXISTS "pgcrypto"')
+        cur.execute(
+            """
+            DO $$ BEGIN
+              IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'metadata_admin') THEN
+                CREATE ROLE metadata_admin LOGIN PASSWORD 'metadata_admin';
+              END IF;
+            END $$
+            """
+        )
     conn.commit()
     for filename in _SCHEMA_FILES:
         _exec_file(conn, os.path.join(_INIT_DIR, filename))
 
 
-postgresql_proc = factories.postgresql_proc(port=None, scope="session")
-_postgresql_session = factories.postgresql("postgresql_proc", scope="session")
-_postgresql_fn = factories.postgresql("postgresql_proc")
-
-
-@pytest.fixture(scope="session")
-def db(_postgresql_session):
-    """Session-scoped DB with schema + seed data. Use for read-only tests."""
-    _bootstrap(_postgresql_session)
-    _exec_file(_postgresql_session, os.path.join(_INIT_DIR, _SEED_FILE))
-    return _postgresql_session
+postgresql_proc = factories.postgresql_proc(port=None)
+postgresql = factories.postgresql("postgresql_proc")
 
 
 @pytest.fixture
-def db_clean(_postgresql_fn):
-    """Function-scoped DB with schema only. Use for tests that write data."""
-    _bootstrap(_postgresql_fn)
-    return _postgresql_fn
+def db_clean(postgresql):
+    """Fresh DB with schema only. Use for write/constraint tests."""
+    _bootstrap(postgresql)
+    return postgresql
 
 
 @pytest.fixture
-def db_txn(db):
-    """Wraps each test in a savepoint against the session DB; rolls back after."""
-    with db.cursor() as cur:
-        cur.execute("SAVEPOINT test_sp")
-    yield db
-    with db.cursor() as cur:
-        cur.execute("ROLLBACK TO SAVEPOINT test_sp")
-        cur.execute("RELEASE SAVEPOINT test_sp")
-    db.commit()
+def db(postgresql):
+    """Fresh DB with schema + seed data. Use for read-only tests."""
+    _bootstrap(postgresql)
+    _exec_file(postgresql, os.path.join(_INIT_DIR, _SEED_FILE))
+    return postgresql

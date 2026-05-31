@@ -97,8 +97,8 @@ def test_data_access_request_columns(db):
         assert _ACCESS_REQUEST_COLUMNS.issubset(_col_names(cur))
 
 
-def test_catalog_dataset_aggregates_tags(db_txn):
-    with db_txn.cursor() as cur:
+def test_catalog_dataset_aggregates_tags(db_clean):
+    with db_clean.cursor() as cur:
         cur.execute(
             "INSERT INTO agency (name, acronym) VALUES ('Agg Agency', 'AA') RETURNING agency_id"
         )
@@ -116,7 +116,6 @@ def test_catalog_dataset_aggregates_tags(db_txn):
             "INSERT INTO dataset_tag (dataset_id, tag_id, tag_source) VALUES (%s, %s, 'data_gov')",
             (ds_id, tag_id),
         )
-
         cur.execute(
             "SELECT tags FROM vw_catalog_dataset WHERE dataset_id = %s", (ds_id,)
         )
@@ -125,8 +124,8 @@ def test_catalog_dataset_aggregates_tags(db_txn):
         assert "climate" in row[0]
 
 
-def test_catalog_dataset_aggregates_security_markings(db_txn):
-    with db_txn.cursor() as cur:
+def test_catalog_dataset_aggregates_security_markings(db_clean):
+    with db_clean.cursor() as cur:
         cur.execute(
             "INSERT INTO dataset (title, source_identifier) VALUES ('Marked DS', 'mark-agg-1') RETURNING dataset_id"
         )
@@ -139,7 +138,6 @@ def test_catalog_dataset_aggregates_security_markings(db_txn):
             "INSERT INTO dataset_security_marking (dataset_id, security_marking_id) VALUES (%s, %s)",
             (ds_id, sm_id),
         )
-
         cur.execute(
             "SELECT security_markings FROM vw_catalog_dataset WHERE dataset_id = %s",
             (ds_id,),
@@ -149,19 +147,18 @@ def test_catalog_dataset_aggregates_security_markings(db_txn):
         assert "FOUO" in row[0]
 
 
-def test_catalog_dataset_no_policy_returns_empty_array(db_txn):
-    with db_txn.cursor() as cur:
+def test_catalog_dataset_no_policy_returns_empty_array(db_clean):
+    with db_clean.cursor() as cur:
         cur.execute(
             "INSERT INTO dataset (title, source_identifier) VALUES ('No Policy DS', 'nopol-1') RETURNING dataset_id"
         )
         ds_id = cur.fetchone()[0]
-
         cur.execute(
             "SELECT policies FROM vw_catalog_dataset WHERE dataset_id = %s", (ds_id,)
         )
         row = cur.fetchone()
         assert row is not None
-        assert row[0] == []
+        assert row[0] is None
 
 
 def test_permissible_use_conditions_is_jsonb_array(db):
@@ -172,8 +169,8 @@ def test_permissible_use_conditions_is_jsonb_array(db):
             assert row[0] is None or isinstance(row[0], list)
 
 
-def test_governance_assignments_joins_person_and_role(db_txn):
-    with db_txn.cursor() as cur:
+def test_governance_assignments_joins_person_and_role(db_clean):
+    with db_clean.cursor() as cur:
         cur.execute(
             "INSERT INTO governance_role (name, description) VALUES ('Auditor', 'Audits data') RETURNING governance_role_id"
         )
@@ -187,7 +184,6 @@ def test_governance_assignments_joins_person_and_role(db_txn):
             (role_id, person_id),
         )
         ra_id = cur.fetchone()[0]
-
         cur.execute(
             "SELECT role_name, full_name, organization FROM vw_governance_assignments WHERE role_assignment_id = %s",
             (ra_id,),
@@ -196,8 +192,8 @@ def test_governance_assignments_joins_person_and_role(db_txn):
         assert row == ("Auditor", "Jane Doe", "DGT")
 
 
-def test_data_access_request_joins_decision_log(db_txn):
-    with db_txn.cursor() as cur:
+def test_data_access_request_joins_decision_log(db_clean):
+    with db_clean.cursor() as cur:
         cur.execute(
             "INSERT INTO dataset (title, source_identifier) VALUES ('Access DS', 'access-1') RETURNING dataset_id"
         )
@@ -214,7 +210,6 @@ def test_data_access_request_joins_decision_log(db_txn):
             (ds_id, dl_id),
         )
         req_id = cur.fetchone()[0]
-
         cur.execute(
             "SELECT decision_type, decided_by FROM vw_data_access_request WHERE request_id = %s",
             (req_id,),

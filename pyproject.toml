@@ -13,3 +13,4 @@ test = [
 
 [tool.pytest.ini_options]
 testpaths = ["airflow/dags/tests", "db/tests"]
+postgresql_exec = "/opt/homebrew/bin/pg_ctl-18"
