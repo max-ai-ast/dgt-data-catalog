@@ -1,0 +1,16 @@
+[project]
+name = "data-catalogue"
+version = "0.1.0"
+requires-python = ">=3.11"
+
+[dependency-groups]
+test = [
+    "pytest>=8",
+    "pytest-postgresql>=6",
+    "apache-airflow>=2.9",
+    "psycopg[binary]>=3.1",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["airflow/dags/tests", "db/tests"]
+postgresql_exec = "/opt/homebrew/bin/pg_ctl-18"
