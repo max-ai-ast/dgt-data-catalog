@@ -1,6 +1,6 @@
 import os
 
-import psycopg2
+import psycopg
 import pytest
 from pytest_postgresql import factories
 
@@ -32,7 +32,7 @@ def _exec_file(conn, path: str) -> None:
     conn.commit()
 
 
-def _bootstrap(conn: psycopg2.extensions.connection) -> None:
+def _bootstrap(conn: psycopg.Connection) -> None:
     with conn.cursor() as cur:
         cur.execute('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"')
         cur.execute('CREATE EXTENSION IF NOT EXISTS "pgcrypto"')
